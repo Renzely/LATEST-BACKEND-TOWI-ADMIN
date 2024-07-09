@@ -54,12 +54,11 @@ app.get("/", (req, res) => {
 
 app.post("/register-user-detail", async (req, res) => {
   const {
-    first_name,
-    middle_name,
-    last_name,
-    email,
-    phone,
-    address,
+    firstName,
+    middleName,
+    lastName,
+    emailAddress,
+    contactNum,
     password,
   } = req.body;
 
@@ -71,14 +70,14 @@ app.post("/register-user-detail", async (req, res) => {
 
   try {
     await User.create({
-      first_name,
-      middle_name,
-      last_name,
-      email,
-      phone,
-      address,
+      firstName,
+      middleName,
+      lastName,
+      emailAddress,
+      contactNum,
       password: encryptedPassword,
       isActivate: false,
+      type: 2
     });
     await Attendance.create({
       user: email,
@@ -95,8 +94,8 @@ app.post("/register-user-detail", async (req, res) => {
 });
 
 app.post("/login-user", async (req, res) => {
-  const { email, password } = req.body;
-  const oldUser = await User.findOne({ email: email });
+  const { emailAddress, password } = req.body;
+  const oldUser = await User.findOne({ emailAddress: emailAddress });
 
   if (!oldUser)
     return res.send({ status: 401, data: "Invalid email or password" });
@@ -105,14 +104,14 @@ app.post("/login-user", async (req, res) => {
     return res.send({ status: 401, data: "User has not been activated yet." });
 
   if (await bcrypt.compare(password, oldUser.password)) {
-    const token = jwt.sign({ email: oldUser.email }, JWT_SECRET);
+    const token = jwt.sign({ emailAddress: oldUser.emailAddress }, JWT_SECRET);
 
     if (res.status(201)) {
       return res.send({
         status: 200,
         data: token,
-        email: oldUser.email,
-        last_name: oldUser.last_name,
+        emailAddress: oldUser.emailAddress,
+        lastName: oldUser.lastName,
       });
     } else {
       return res.send({ error: "error" });
@@ -120,6 +119,96 @@ app.post("/login-user", async (req, res) => {
   }
   {
     return res.send({ status: 401, data: "Invalid user or password" });
+  }
+});
+
+app.post("/register-user-admin", async(req, res) => {
+  const {firstName, middleName, lastName, emailAddress, contactNum, password} = req.body;
+  const encryptedPassword = await bcrypt.hash(password, 8);
+
+  const oldUser = await User.findOne({emailAddress:emailAddress});
+
+  const dateNow =  new Date();
+  
+  if (oldUser) return res.send({data:"User already exist!"});
+
+
+
+  try {
+      await User.create({
+          firstName,
+          middleName,
+          lastName,
+          emailAddress,
+          contactNum,
+          password: encryptedPassword,
+          isActivate: false,
+          j_date : dateNow,
+          type : 2
+      });
+      res.send({status: 200, data:"User Created"})
+  } catch (error) {
+      res.send({ status: "error", data: error});
+  }
+});
+
+app.post("/get-admin-user", async(req, res)=> {
+   
+
+  try {
+
+      const data = await User.aggregate([
+          
+        {
+          $match: {
+            "type": 2
+          }
+        },       
+
+          {
+              $project: {
+                  "firstName" : 1,
+                  "middleName" : 1,
+                  "lastName" : 1,
+                  "emailAddress" : 1,
+                  "contactNum" : 1,
+                  "isActivate" : 1,
+                  // "j_date" : 1,
+              }
+          }
+            
+        
+      ])
+          
+      return res.send({ status: 200, data: data});
+  
+  } catch (error) {
+          return res.send({error: error});
+  }
+
+});
+
+app.post("/login-admin" , async(req, res) =>{
+  const {emailAddress, password} = req.body;
+  const oldUser = await User.findOne({ emailAddress : emailAddress });
+
+  if(!oldUser) return res.send({status: 401, data: "Invalid email or password"});
+
+  if(!oldUser.type === 2) return res.send({status: 401, data: "Invalid User ."});
+
+  if(oldUser.isActivate === false) return res.send({status: 401, data: "User is already deactivated yet."});
+  
+  if(await bcrypt.compare(password, oldUser.password)){
+      const token = jwt.sign({emailAddress: oldUser.emailAddress}, JWT_SECRET);
+      
+      if(res.status(201)){
+          return res.send({ status: 200, data: token, emailAddress: oldUser.emailAddress, firstName: oldUser.firstName, middleName: oldUser.middleName, lastName: oldUser.lastName, contactNum: oldUser.contactNum});
+      }else{
+          return res.send({ error: "error"});
+      }
+
+  }{
+      return res.send({status: 401, data: "Invalid user or password"});
   }
 });
 
@@ -321,12 +410,34 @@ app.post("/retrieve-parcel-input", async (req, res) => {
 
 app.post("/get-all-user", async (req, res) => {
   try {
-    User.find().then((data) => {
+    User.aggregate([
+      {
+        $match: {
+          "type": 1
+        }
+      }, 
+      
+      {
+        $project: {
+            "firstName" : 1,
+            "middleName" : 1,
+            "lastName" : 1,
+            "emailAddress" : 1,
+            "contactNum" : 1,
+            "isActivate" : 1,
+            "remarks" : 1,
+            "accountNameBranchManning" : 1,
+            // "j_date" : 1,
+        }
+    }
+    ]).then((data) => {
       return res.send({ status: 200, data: data });
     });
   } catch (error) {
     return res.send({ error: error });
   }
+
+
 });
 
 app.post("/view-user-attendance", async (req, res) => {
@@ -412,44 +523,51 @@ const transporter = nodemailer.createTransport({
 // });
 
 
-app.post("/send-otp-register", async(req, res)=> {
-  const { email} = req.body;
-
-  // const oldUser = await User.findOne({email:email});
-  
-  // if (!oldUser) return res.send({data:"User does not exist!",status: 404});
+app.post("/send-otp-register", async (req, res) => {
+  const { email } = req.body;
 
   try {
-  //   await sendMail(transporter, info);
-
-      var code = Math.floor(100000 + Math.random() * 900000);   
-      code = String(code);
-      code = code.substring(0,4);
+    var code = Math.floor(100000 + Math.random() * 900000);   
+    code = String(code);
+    code = code.substring(0, 4);
 
     const info = await transporter.sendMail({
       from: {
-          name: "BMPower",
-          address: process.env.Email
-      }, // sender address
-      to: email, // list of receivers
-      subject: "OTP code", // Subject line
-      html: "<b>Your OTP code is</b> " + code + "<b>. Do not share this code with others.</b>", // html body
+        name: "BMPower",
+        address: process.env.email,
+      },
+      to: email,
+      subject: "OTP code",
+      html: "<b>Your OTP code is</b> " + code + "<b>. Do not share this code with others.</b>",
+    });
 
-  });
-      return res.send({status : 200, data: info, email: email, code: code});
+    return res.send({ status: 200, code: code });
   } catch (error) {
-      
-          return res.send({error: error});
-          // return res.send({data: data});
+    return res.send({ error: error.message });
   }
+});
 
+
+app.put("/forgot-password-reset", async(req, res) => {
+  const {password, emailAddress} = req.body;
+
+  const encryptedPassword = await bcrypt.hash(password, 8);
+
+  const userEmail = emailAddress;
+  console.log(userEmail);
+  try{
+      await User.findOneAndUpdate({emailAddress: userEmail}, {$set: {password: encryptedPassword}});
+      res.send({status: 200, data:"Password updated"})
+  } catch(error){
+      res.send({status: "error", data: error});
+  }
 
 });
 
 app.post("/send-otp-forgotpassword", async (req, res) => {
-  const { email } = req.body;
+  const { emailAddress } = req.body;
 
-  const oldUser = await User.findOne({ emailAddress: email });
+  const oldUser = await User.findOne({ emailAddress: emailAddress });
 
   if (!oldUser) {
     return res.status(404).json({ error: "Email does not exist" });
@@ -465,7 +583,7 @@ app.post("/send-otp-forgotpassword", async (req, res) => {
         name: "BMPower",
         address: process.env.Email,
       },
-      to: email,
+      to: emailAddress,
       subject: "OTP code",
       html:
         "<b>Your OTP code is</b> " +
@@ -473,13 +591,12 @@ app.post("/send-otp-forgotpassword", async (req, res) => {
         "<b>. Do not share this code with others.</b>",
     });
     
-    return res.status(200).json({ status: 200, data: info, email: email, code: code });
+    return res.status(200).json({ status: 200, data: info, emailAddress: emailAddress, code: code });
   } catch (error) {
     console.error(error);
     return res.status(500).json({ error: "Failed to send OTP. Please try again." });
   }
 });
-
 
 
 

@@ -3,15 +3,16 @@ const mongoose = require("mongoose");
 const UserDetailSchema = new mongoose.Schema(
   {
     remarks: String,
-    firstname: String,
+    firstName: String,
     middleName: String,
-    lastname: String,
+    lastName: String,
     emailAddress: { type: String, unique: true },
     contactNum: String,
     username: String,
     password: String,
     isActivate: Boolean,
     accountNameBranchManning: [String],
+    type: Number
   },
   {
     collection: "TowiDb",
