@@ -2,6 +2,7 @@ const mongoose = require("mongoose");
 
 const UserDetailSchema = new mongoose.Schema(
   {
+    roleAccount: String,
     remarks: String,
     firstName: String,
     middleName: String,
@@ -12,7 +13,7 @@ const UserDetailSchema = new mongoose.Schema(
     password: String,
     isActivate: Boolean,
     accountNameBranchManning: [String],
-    type: Number
+    type: Number,
   },
   {
     collection: "TowiDb",
