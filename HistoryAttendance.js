@@ -9,4 +9,5 @@ const AttendanceSchema = new mongoose.Schema({
   collection: "TowiAttendances",
 });
 
-const Attendance = mongoose.model("TowiAttendances", AttendanceSchema);
+mongoose.model("TowiAttendances", AttendanceSchema);
+
