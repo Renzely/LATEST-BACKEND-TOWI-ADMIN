@@ -130,6 +130,54 @@ app.get("/", (req, res) => {
 //   }
 // });
 
+
+// app.post("/export-inventory-data", async(req, res)=> {
+
+//   const { start, end } = req.body;
+
+//   console.log(start , end)
+
+
+
+//   try {
+     
+//       const data = await ParcelData.aggregate([
+
+//           {
+//               $project: {
+//                  'userEmail' : 1,
+//                  'date' : 1,
+//                  'inputId' : 1,
+//                  'name' : 1,
+//                  'accountNameBranchManning' : 1,
+//                  'period' : 1,
+//                  'month' : 1,
+//                  'category' : 1,
+//                  'skuDescription' : 1,
+//                  'products' : 1,
+//                  'skuCode' : 1,
+//                  'status' : 1,
+//                  'beginning' : 1,
+//                  'delivery' : 1,
+//                  'offtake' : 1,
+//                  'inventoryDaysLevel' : 1,
+//                  'noOfDaysOOS' : 1,
+                 
+                 
+//               } 
+//           }    
+      
+//       ])
+       
+//       return res.send({ status: 200, data: data});
+      
+//   } catch (error) {
+//           return res.send({error: error});
+//   }
+
+
+// });
+
 app.post("/get-all-attendance", async (req, res) => {
 
 const {userEmail} = req.body;
@@ -142,19 +190,7 @@ const {userEmail} = req.body;
         }
       }, 
       
-      {
-        // $project: {
-        //     "firstName" : 1,
-        //     "middleName" : 1,
-        //     "lastName" : 1,
-        //     "emailAddress" : 1,
-        //     "contactNum" : 1,
-        //     "isActivate" : 1,
-        //     "remarks" : 1,
-        //     "accountNameBranchManning" : 1,
-        //     // "j_date" : 1,
-        // }
-    }
+
     ]).then((data) => {
       return res.send({ status: 200, data: data });
     });
@@ -166,27 +202,19 @@ const {userEmail} = req.body;
 });
 
 
-app.post('/get-attendance', async (req, res) => {
+app.post("/get-attendance", async (req, res) => {
+  const { userEmail } = req.body;
+
+
   try {
-    console.log('Request body:', req.body); // Log the request body
-
-    const { userEmail } = req.body;
-    if (!userEmail) {
-      return res.status(400).json({ message: 'Email is required' });
-    }
-
-    const records = await Attendance.find({ userEmail });
-
-    if (!records.length) {
-      return res.status(404).json({ message: 'No records found' });
-    }
-
-    res.json({ data: records });
+    const attendanceData = await Attendance.find({ userEmail: userEmail }); // Fetch data from the database
+    return res.send({ status: 200, data: attendanceData });
   } catch (error) {
-    console.error('Error fetching attendance data:', error);
-    res.status(500).json({ message: 'Server error' });
+    return res.status(500).send({ error: error.message });
   }
 });
+
+
 
 
 
@@ -637,8 +665,23 @@ app.post("/test-index", async (req, res) => {
 });
 
 app.post("/retrieve-parcel-data", async (req, res) => {
+
   try {
     const parcelPerUser = await ParcelData.find();
+
+    console.log("Found parcels:", parcelPerUser);
+    return res.status(200).json({ status: 200, data: parcelPerUser });
+  } catch (error) {
+    return res.send({ error: error });
+  }
+});
+
+app.post("/filter-date", async (req, res) => {
+
+  const {selectDate} = req.body;
+  console.log("test" , selectDate)
+  try {
+    const parcelPerUser = await ParcelData.find( {date:{$eq:selectDate}} );
 
     console.log("Found parcels:", parcelPerUser);
     return res.status(200).json({ status: 200, data: parcelPerUser });
@@ -650,6 +693,19 @@ app.post("/retrieve-parcel-data", async (req, res) => {
 app.post("/retrieve-RTV-data", async (req, res) => {
   try {
     const parcelPerUser = await RTV.find();
+
+    console.log("Found parcels:", parcelPerUser);
+    return res.status(200).json({ status: 200, data: parcelPerUser });
+  } catch (error) {
+    return res.send({ error: error });
+  }
+});
+
+app.post("/filter-RTV-data", async (req, res) => {
+  
+  const {selectDate} = req.body;
+  try {
+    const parcelPerUser = await RTV.find({date:{$eq:selectDate}});
 
     console.log("Found parcels:", parcelPerUser);
     return res.status(200).json({ status: 200, data: parcelPerUser });
