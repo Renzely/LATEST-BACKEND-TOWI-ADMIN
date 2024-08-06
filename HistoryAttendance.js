@@ -5,6 +5,8 @@ const AttendanceSchema = new mongoose.Schema({
   date: Date,
   timeIn: Date,
   timeOut: Date,
+  timeInlocation: String,
+  timeoutlocation: String,
 }, {
   collection: "TowiAttendances",
 });
