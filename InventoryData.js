@@ -21,6 +21,8 @@ const ParcelDataSchema = new mongoose.Schema(
     offtake: Number,
     inventoryDayslevel: Number,
     noOfDaysOOS: Number,
+    remarksOOS: String,
+    reasonOOS: String,
   },
   {
     collection: "TowiInventory",
