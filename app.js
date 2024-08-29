@@ -10,6 +10,7 @@ require("./CoorDetails");
 require("./InventoryData");
 require("./RtvData");
 require("./HistoryAttendance");
+require("./status")
 const nodemailer = require("nodemailer");
 const bcrypt = require("bcryptjs");
 const jwt = require("jsonwebtoken");
@@ -19,7 +20,7 @@ require('dotenv').config()
 app.use(express.json());
 
 var cors = require("cors");
-const { status, type } = require("express/lib/response");
+const { status, type, append } = require("express/lib/response");
 app.use(cors());
 
 const mongoURI =
@@ -28,6 +29,8 @@ const mongoURI =
 const User = mongoose.model("TowiDb");
 
 const Attendance = mongoose.model("TowiAttendances");
+
+const BranchSKU = mongoose.model("BranchSKU");
 
 // const Attendance = mongoose.model("attendances");
 
@@ -92,6 +95,34 @@ app.post("/get-attendance", async (req, res) => {
     return res.send({ status: 200, data: attendanceData });
   } catch (error) {
     return res.status(500).send({ error: error.message });
+  }
+});
+
+
+
+app.post('/save-branch-sku', async (req, res) => {
+  try {
+    const { accountNameBranchManning, category, skus } = req.body;
+
+    console.log('Received data:', { accountNameBranchManning, category, skus });
+
+    if (!accountNameBranchManning || !category || !skus || !Array.isArray(skus)) {
+      return res.status(400).json({ error: 'Invalid request data' });
+    }
+
+    // Upsert operation: If a document with the same branch and category exists, update it. Otherwise, create a new one.
+    const result = await BranchSKU.updateOne(
+      { accountNameBranchManning, category }, // Filter condition
+      { $addToSet: { SKUs: { $each: skus } } }, // Add SKUs to the array, avoiding duplicates
+      { upsert: true } // Create a new document if no matching document is found
+    );
+
+    console.log('Update result:', result);
+
+    res.status(201).json({ message: 'BranchSKUs saved successfully', data: result });
+  } catch (error) {
+    console.error('Error saving BranchSKUs:', error);
+    res.status(500).json({ error: 'Internal server error' });
   }
 });
 
