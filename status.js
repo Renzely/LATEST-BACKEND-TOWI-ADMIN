@@ -5,7 +5,8 @@ const branchSKUSchema = new mongoose.Schema({
   category: { type: String, required: true },
   SKUs: [{ 
     SKUDescription: { type: String }, 
-    enabled: { type: Boolean, default: false } 
+    enabled: { type: Boolean, default: true },
+    status: { type: String, default: 'Carried' }
   }]
 });
 
