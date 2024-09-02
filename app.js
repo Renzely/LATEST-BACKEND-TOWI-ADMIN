@@ -99,6 +99,178 @@ app.post("/get-attendance", async (req, res) => {
 });
 
 
+app.get('/get-skus', async (req, res) => {
+  const { accountNameBranchManning } = req.query;
+
+  if (!accountNameBranchManning) {
+    return res.status(400).json({ message: 'Branch name is required' });
+  }
+
+  try {
+    // Find the SKUs associated with the given branch name
+    const skus = await BranchSKU.find({ accountNameBranchManning });
+
+    if (!skus || skus.length === 0) {
+      return res.status(404).json({ message: 'No SKUs found for this branch' });
+    }
+
+    // Group SKUs by category and filter out disabled SKUs
+    const skusByCategory = skus.reduce((acc, sku) => {
+      if (!acc[sku.category]) {
+        acc[sku.category] = [];
+      }
+      const enabledSkus = sku.SKUs.filter(skuItem => skuItem.enabled); // Filter enabled SKUs
+      if (enabledSkus.length > 0) {
+        acc[sku.category].push(enabledSkus);
+      }
+      return acc;
+    }, {});
+
+    res.status(200).json(skusByCategory);
+  } catch (error) {
+    console.error('Error fetching SKUs:', error);
+    res.status(500).json({ message: 'Server error' });
+  }
+});
+
+
+
+app.post('/disable-sku', async (req, res) => {
+  const { branch, category, skuDescription, enabled, status } = req.body;
+
+  try {
+    // Find the branch SKU document
+    const branchSKU = await BranchSKU.findOne({
+      accountNameBranchManning: branch,
+      category: category,
+    });
+
+    if (!branchSKU) {
+      return res.status(404).json({ message: 'Branch and category not found.' });
+    }
+
+    // Find the SKU and update its enabled status
+    const sku = branchSKU.SKUs.find(s => s.SKUDescription === skuDescription);
+    if (!sku) {
+      return res.status(404).json({ message: 'SKU not found in this category.' });
+    }
+
+    sku.status = status; // Add or update the status field
+    sku.enabled = enabled;
+
+    // Save the updated document
+    await branchSKU.save();
+
+    res.status(200).json({ message: 'SKU status updated successfully.' });
+  } catch (error) {
+    console.error('Error updating SKU status:', error);
+    res.status(500).json({ message: 'An error occurred while updating SKU status.' });
+  }
+});
+
+app.post('/enable-sku', async (req, res) => {
+  const { branch, category, skuDescription, enabled} = req.body;
+
+  try {
+    // Find the branch SKU document
+    const branchSKU = await BranchSKU.findOne({
+      accountNameBranchManning: branch,
+      category: category,
+    });
+
+    if (!branchSKU) {
+      return res.status(404).json({ message: 'Branch and category not found.' });
+    }
+
+    // Find the SKU and update its enabled status
+    const sku = branchSKU.SKUs.find(s => s.SKUDescription === skuDescription);
+    if (!sku) {
+      return res.status(404).json({ message: 'SKU not found in this category.' });
+    }
+
+    sku.status = status; // Add or update the status field
+    sku.enabled = enabled;
+
+    // Save the updated document
+    await branchSKU.save();
+
+    res.status(200).json({ message: 'SKU status updated successfully.' });
+  } catch (error) {
+    console.error('Error updating SKU status:', error);
+    res.status(500).json({ message: 'An error occurred while updating SKU status.' });
+  }
+});
+
+app.post('/delisted-sku', async (req, res) => {
+  const { branch, category, skuDescription, enabled, status } = req.body;
+
+  try {
+    // Find the branch SKU document
+    const branchSKU = await BranchSKU.findOne({
+      accountNameBranchManning: branch,
+      category: category,
+    });
+
+    if (!branchSKU) {
+      return res.status(404).json({ message: 'Branch and category not found.' });
+    }
+
+    // Find the SKU and update its status
+    const sku = branchSKU.SKUs.find(s => s.SKUDescription === skuDescription);
+    if (!sku) {
+      return res.status(404).json({ message: 'SKU not found in this category.' });
+    }
+
+    sku.enabled = enabled;
+    sku.status = status; // Add or update the status field
+
+    // Save the updated document
+    await branchSKU.save();
+
+    res.status(200).json({ message: 'SKU status updated to Delisted successfully.' });
+  } catch (error) {
+    console.error('Error updating SKU status:', error);
+    res.status(500).json({ message: 'An error occurred while updating SKU status.' });
+  }
+});
+
+
+app.post('/update-sku-status', async (req, res) => {
+  const { branch, category, status, skuDescription } = req.body;
+
+  try {
+    // Find the specific branch SKU entry based on the branch and category
+    const branchSKU = await BranchSKU.findOne({
+      accountNameBranchManning: branch,
+      category: category,
+    });
+
+    // Check if the branch SKU document exists
+    if (!branchSKU) {
+      return res.status(404).json({ message: 'Branch and category not found.' });
+    }
+
+    // Find the specific SKU within the found branch SKU document
+    const sku = branchSKU.SKUs.find(s => s.SKUDescription === skuDescription);
+    if (!sku) {
+      return res.status(404).json({ message: 'SKU not found in this category.' });
+    }
+
+    // Update the SKU status
+    sku.status = status;
+    sku.enabled = status === 'Not Carried' || status === 'Delisted' ? false : true; // Update SKU enabled state based on status
+
+    // Save the updated branch SKU document
+    await branchSKU.save();
+
+    res.status(200).json({ message: 'SKU status updated successfully.' });
+  } catch (error) {
+    console.error('Error updating SKU status:', error);
+    res.status(500).json({ message: 'An error occurred while updating SKU status.' });
+  }
+});
+
+
 
 app.post('/save-branch-sku', async (req, res) => {
   try {
