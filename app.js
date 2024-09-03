@@ -98,6 +98,35 @@ app.post("/get-attendance", async (req, res) => {
   }
 });
 
+app.get('/get-skus-by-status', async (req, res) => {
+  const { branch, statusCategory, status } = req.query;
+
+  if (!branch || !statusCategory || !status) {
+    return res.status(400).json({ message: 'Branch, Category, and Status are required' });
+  }
+
+  try {
+    const branchData = await BranchSKU.findOne({
+      accountNameBranchManning: branch,
+      category: statusCategory
+    });
+
+    if (!branchData) {
+      return res.status(404).json({ message: 'Branch or Category not found' });
+    }
+
+    // Filter SKUs where `enabled` is false and status matches the provided status
+    const skus = branchData.SKUs.filter(sku => 
+      !sku.enabled && sku.status === status
+    );
+
+    res.status(200).json(skus);
+  } catch (error) {
+    console.error('Error fetching SKUs:', error);
+    res.status(500).json({ message: 'Internal server error' });
+  }
+});
+
 
 app.get('/get-skus', async (req, res) => {
   const { accountNameBranchManning } = req.query;
@@ -169,7 +198,7 @@ app.post('/disable-sku', async (req, res) => {
 });
 
 app.post('/enable-sku', async (req, res) => {
-  const { branch, category, skuDescription, enabled} = req.body;
+  const { branch, category, skuDescription, enabled, status } = req.body;
 
   try {
     // Find the branch SKU document
@@ -182,14 +211,19 @@ app.post('/enable-sku', async (req, res) => {
       return res.status(404).json({ message: 'Branch and category not found.' });
     }
 
-    // Find the SKU and update its enabled status
+    // Find the SKU and update its enabled status and status field
     const sku = branchSKU.SKUs.find(s => s.SKUDescription === skuDescription);
     if (!sku) {
       return res.status(404).json({ message: 'SKU not found in this category.' });
     }
 
-    sku.status = status; // Add or update the status field
-    sku.enabled = enabled;
+    // Ensure the SKU was previously disabled and its status was either "Not Carried" or "Delisted"
+    if (!sku.enabled && ['Not Carried', 'Delisted'].includes(sku.status)) {
+      sku.status = status; // Update the status field
+      sku.enabled = enabled; // Enable the SKU
+    } else {
+      return res.status(400).json({ message: 'SKU is already enabled or does not meet the criteria for enabling.' });
+    }
 
     // Save the updated document
     await branchSKU.save();
@@ -200,6 +234,7 @@ app.post('/enable-sku', async (req, res) => {
     res.status(500).json({ message: 'An error occurred while updating SKU status.' });
   }
 });
+
 
 app.post('/delisted-sku', async (req, res) => {
   const { branch, category, skuDescription, enabled, status } = req.body;
