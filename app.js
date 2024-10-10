@@ -594,6 +594,7 @@ app.post("/get-all-user", async (req, res) => {
             "isActivate" : 1,
             "remarks" : 1,
             "accountNameBranchManning" : 1,
+            "username": 1,
             // "j_date" : 1,
         }
     }
