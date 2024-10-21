@@ -61,6 +61,16 @@ app.get("/", (req, res) => {
   res.send({ status: "started" });
 });
 
+app.post("/get-users-by-branch", async (req, res) => {
+  const { branch } = req.body;
+  try {
+    const users = await ParcelData.find({ accountNameBranchManning: branch });
+    return res.status(200).json({ status: 200, users });
+  } catch (error) {
+    return res.status(500).json({ error: "Error fetching users" });
+  }
+});
+
 
 app.post("/get-all-attendance", async (req, res) => {
 
