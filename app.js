@@ -454,7 +454,8 @@ app.post("/login-admin", async (req, res) => {
           middleName: oldUser.middleName,
           lastName: oldUser.lastName,
           contactNum: oldUser.contactNum,
-          roleAccount: oldUser.roleAccount // Include roleAccount in the response
+          roleAccount: oldUser.roleAccount, // Include roleAccount in the response
+          accountNameBranchManning: oldUser.accountNameBranchManning
         }
       });
     } else {
@@ -587,36 +588,48 @@ app.post("/get-all-merchandiser", async (req, res) => {
 
 app.post("/get-all-user", async (req, res) => {
   try {
+    const { branches } = req.body; // Get the branches from the request body
+
+    if (!branches || !Array.isArray(branches)) {
+      return res.status(400).json({ status: 400, message: "Invalid branch data" });
+    }
+
+    // Filter users based on the provided branches
     User.aggregate([
       {
         $match: {
-          "type": 1
+          type: 1, // Assuming this is the type filter for users
+          accountNameBranchManning: { $in: branches }
         }
-      }, 
-      
+      },
       {
         $project: {
-            "firstName" : 1,
-            "middleName" : 1,
-            "lastName" : 1,
-            "emailAddress" : 1,
-            "contactNum" : 1,
-            "isActivate" : 1,
-            "remarks" : 1,
-            "accountNameBranchManning" : 1,
-            "username": 1,
-            // "j_date" : 1,
+          firstName: 1,
+          middleName: 1,
+          lastName: 1,
+          emailAddress: 1,
+          contactNum: 1,
+          isActivate: 1,
+          remarks: 1,
+          accountNameBranchManning: 1,
+          username: 1,
+          // j_date: 1,
         }
-    }
-    ]).then((data) => {
-      return res.send({ status: 200, data: data });
-    });
+      }
+    ])
+      .then((data) => {
+        return res.status(200).json({ status: 200, data });
+      })
+      .catch((error) => {
+        console.error("Error during user aggregation:", error);
+        return res.status(500).json({ status: 500, message: "Server error" });
+      });
   } catch (error) {
-    return res.send({ error: error });
+    console.error("Error in /get-all-user:", error);
+    return res.status(500).json({ error: error.message });
   }
-
-
 });
+
 
 app.post("/view-user-attendance", async (req, res) => {
   const { user } = req.body;
@@ -651,16 +664,26 @@ app.post("/test-index", async (req, res) => {
 });
 
 app.post("/retrieve-parcel-data", async (req, res) => {
-
   try {
-    const parcelPerUser = await ParcelData.find();
+    const { branches } = req.body; // Get the branch list from the request body
 
-    console.log("Found parcels:", parcelPerUser);
+    if (!branches || !Array.isArray(branches)) {
+      return res.status(400).json({ status: 400, message: "Invalid branch data" });
+    }
+
+    // Find parcels that match the provided branches
+    const parcelPerUser = await ParcelData.find({
+      accountNameBranchManning: { $in: branches }
+    });
+
+    console.log("Filtered parcels:", parcelPerUser.length);
     return res.status(200).json({ status: 200, data: parcelPerUser });
   } catch (error) {
-    return res.send({ error: error });
+    console.error("Error retrieving parcels:", error);
+    return res.status(500).json({ status: 500, error: "Server error" });
   }
 });
+
 
 app.post("/filter-date", async (req, res) => {
 
@@ -677,28 +700,47 @@ app.post("/filter-date", async (req, res) => {
 });
 
 app.post("/retrieve-RTV-data", async (req, res) => {
-  try {
-    const parcelPerUser = await RTV.find();
+  const { branches } = req.body; // Get branches from request body
 
-    console.log("Found parcels:", parcelPerUser);
-    return res.status(200).json({ status: 200, data: parcelPerUser });
+  if (!branches || !Array.isArray(branches)) {
+    return res.status(400).json({ status: 400, message: "Invalid branch data" });
+  }
+
+  try {
+    const rtvData = await RTV.find({
+      outlet: { $in: branches }, // Filter by branches
+    });
+
+    console.log("Filtered RTV data:", rtvData);
+    return res.status(200).json({ status: 200, data: rtvData });
   } catch (error) {
-    return res.send({ error: error });
+    console.error("Error retrieving RTV data:", error);
+    return res.status(500).json({ status: 500, message: "Server error" });
   }
 });
+
 
 app.post("/filter-RTV-data", async (req, res) => {
-  
-  const {selectDate} = req.body;
-  try {
-    const parcelPerUser = await RTV.find({date:{$eq:selectDate}});
+  const { selectDate, branches } = req.body; // Get date and branches from request body
 
-    console.log("Found parcels:", parcelPerUser);
-    return res.status(200).json({ status: 200, data: parcelPerUser });
+  if (!branches || !Array.isArray(branches)) {
+    return res.status(400).json({ status: 400, message: "Invalid branch data" });
+  }
+
+  try {
+    const rtvData = await RTV.find({
+      date: { $eq: selectDate },
+      outlet: { $in: branches }, // Filter by branches
+    });
+
+    console.log("Filtered RTV data by date and branches:", rtvData);
+    return res.status(200).json({ status: 200, data: rtvData });
   } catch (error) {
-    return res.send({ error: error });
+    console.error("Error filtering RTV data:", error);
+    return res.status(500).json({ status: 500, message: "Server error" });
   }
 });
+
 
 const transporter = nodemailer.createTransport({
   pool: true,
