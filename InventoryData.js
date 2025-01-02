@@ -23,6 +23,12 @@ const ParcelDataSchema = new mongoose.Schema(
     noOfDaysOOS: Number,
     remarksOOS: String,
     reasonOOS: String,
+    expiryFields: [
+      {
+        type: Map,  // Define each item in the array as a Map with keys and values
+        of: mongoose.Schema.Types.Mixed,  // Can store mixed types (strings, numbers, etc.)
+      }
+    ],
   },
   {
     collection: "TowiInventory",
