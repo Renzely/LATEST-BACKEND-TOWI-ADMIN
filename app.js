@@ -21,7 +21,7 @@ app.use(express.json());
 
 const cors = require("cors");
 const corsOptions = {
-  origin: "https://towiadmin.vercel.app", // Frontend domain
+  origin: "https://latest-backend-towi-admin.onrender.com", // Frontend domain
   methods: ["GET", "POST", "PUT", "DELETE"], // Allowed methods
   credentials: true, // Allow cookies/credentials
 };
