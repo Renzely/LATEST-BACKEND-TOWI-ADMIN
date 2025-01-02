@@ -454,7 +454,8 @@ app.post("/login-admin", async (req, res) => {
           middleName: oldUser.middleName,
           lastName: oldUser.lastName,
           contactNum: oldUser.contactNum,
-          roleAccount: oldUser.roleAccount // Include roleAccount in the response
+          roleAccount: oldUser.roleAccount,
+          accountNameBranchManning: oldUser.accountNameBranchManning // Include roleAccount in the response
         }
       });
     } else {
@@ -587,36 +588,48 @@ app.post("/get-all-merchandiser", async (req, res) => {
 
 app.post("/get-all-user", async (req, res) => {
   try {
+    const { branches } = req.body; // Get the branches from the request body
+
+    if (!branches || !Array.isArray(branches)) {
+      return res.status(400).json({ status: 400, message: "Invalid branch data" });
+    }
+
+    // Filter users based on the provided branches
     User.aggregate([
       {
         $match: {
-          "type": 1
+          type: 1, // Assuming this is the type filter for users
+          accountNameBranchManning: { $in: branches }
         }
-      }, 
-      
+      },
       {
         $project: {
-            "firstName" : 1,
-            "middleName" : 1,
-            "lastName" : 1,
-            "emailAddress" : 1,
-            "contactNum" : 1,
-            "isActivate" : 1,
-            "remarks" : 1,
-            "accountNameBranchManning" : 1,
-            "username": 1,
-            // "j_date" : 1,
+          firstName: 1,
+          middleName: 1,
+          lastName: 1,
+          emailAddress: 1,
+          contactNum: 1,
+          isActivate: 1,
+          remarks: 1,
+          accountNameBranchManning: 1,
+          username: 1,
+          // j_date: 1,
         }
-    }
-    ]).then((data) => {
-      return res.send({ status: 200, data: data });
-    });
+      }
+    ])
+      .then((data) => {
+        return res.status(200).json({ status: 200, data });
+      })
+      .catch((error) => {
+        console.error("Error during user aggregation:", error);
+        return res.status(500).json({ status: 500, message: "Server error" });
+      });
   } catch (error) {
-    return res.send({ error: error });
+    console.error("Error in /get-all-user:", error);
+    return res.status(500).json({ error: error.message });
   }
-
-
 });
+
 
 app.post("/view-user-attendance", async (req, res) => {
   const { user } = req.body;
@@ -650,55 +663,259 @@ app.post("/test-index", async (req, res) => {
   }
 });
 
-app.post("/retrieve-parcel-data", async (req, res) => {
+// app.post("/retrieve-parcel-data", async (req, res) => {
+
+//   try {
+//     const parcelPerUser = await ParcelData.find();
+
+//     console.log("Found parcels:", parcelPerUser);
+//     return res.status(200).json({ status: 200, data: parcelPerUser });
+//   } catch (error) {
+//     return res.send({ error: error });
+//   }
+// });
+
+app.post("/filter-date-range", async (req, res) => {
+  const { startDate, endDate } = req.body; // Expect startDate and endDate in the request body
+  console.log("Filter range:", { startDate, endDate });
 
   try {
-    const parcelPerUser = await ParcelData.find();
+    // Fetch parcels where the date is within the range
+    const parcelsInRange = await ParcelData.find({
+      date: { $gte: startDate, $lte: endDate },
+    });
 
-    console.log("Found parcels:", parcelPerUser);
-    return res.status(200).json({ status: 200, data: parcelPerUser });
+    console.log("Found parcels in range:", parcelsInRange);
+    return res.status(200).json({ status: 200, data: parcelsInRange });
   } catch (error) {
-    return res.send({ error: error });
+    console.error("Error fetching parcels:", error);
+    return res.status(500).send({ error: "Internal Server Error" });
   }
 });
 
-app.post("/filter-date", async (req, res) => {
 
-  const {selectDate} = req.body;
-  console.log("test" , selectDate)
+app.post("/retrieve-parcel-data", async (req, res) => {
   try {
-    const parcelPerUser = await ParcelData.find( {date:{$eq:selectDate}} );
+    const { branches } = req.body; // Get the branch list from the request body
 
-    console.log("Found parcels:", parcelPerUser);
+    if (!branches || !Array.isArray(branches)) {
+      return res.status(400).json({ status: 400, message: "Invalid branch data" });
+    }
+
+    // Find parcels that match the provided branches
+    const parcelPerUser = await ParcelData.find({
+      accountNameBranchManning: { $in: branches }
+    });
+
+    console.log("Filtered parcels:", parcelPerUser);
     return res.status(200).json({ status: 200, data: parcelPerUser });
   } catch (error) {
-    return res.send({ error: error });
+    console.error("Error retrieving parcels:", error);
+    return res.status(500).json({ status: 500, error: "Server error" });
   }
 });
 
 app.post("/retrieve-RTV-data", async (req, res) => {
-  try {
-    const parcelPerUser = await RTV.find();
+  const { branches } = req.body; // Get branches from request body
 
-    console.log("Found parcels:", parcelPerUser);
-    return res.status(200).json({ status: 200, data: parcelPerUser });
+  if (!branches || !Array.isArray(branches)) {
+    return res.status(400).json({ status: 400, message: "Invalid branch data" });
+  }
+
+  try {
+    const rtvData = await RTV.find({
+      outlet: { $in: branches }, // Filter by branches
+    });
+
+    console.log("Filtered RTV data:", rtvData);
+    return res.status(200).json({ status: 200, data: rtvData });
   } catch (error) {
-    return res.send({ error: error });
+    console.error("Error retrieving RTV data:", error);
+    return res.status(500).json({ status: 500, message: "Server error" });
+  }
+});
+
+app.post("/export-inventory-data-towi", async (req, res) => {
+  const { start, end } = req.body;
+
+  try {
+      const data = await mongoose.model("TowiInventory").aggregate([
+          // Match documents within the specified date range
+          {
+              $match: {
+                  $expr: {
+                      $and: [
+                          { $gte: [{ $toDate: "$date" }, new Date(start)] },
+                          { $lt: [{ $toDate: "$date" }, new Date(end)] }
+                      ]
+                  }
+              }
+          },
+          // Optionally join with another collection if needed
+          {
+              $lookup: {
+                  from: "users",
+                  localField: "UserEmail", // Adjust field to match schema
+                  foreignField: "email",
+                  as: "user_details"
+              }
+          },
+          // Flatten the structure by merging user details into the root object
+          {
+              $replaceRoot: {
+                  newRoot: {
+                      $mergeObjects: [
+                          { $arrayElemAt: ["$user_details", 0] },
+                          "$$ROOT"
+                      ]
+                  }
+              }
+          },
+          // Select and rename fields for the output
+          {
+            $project: {
+                date: 1,
+                name: 1,
+                inputId: 1,
+                UserEmail: 1,
+                accountNameBranchManning: 1,
+                period: 1,
+                month: 1,
+                week: 1,
+                skuDescription: 1,
+                skuCode: 1,
+                status: 1,
+                beginningSA: 1,
+                beginningWA: 1,
+                beginning: 1,
+                delivery: 1,
+                endingSA: 1,
+                endingWA: 1,
+                ending: 1,
+                expiryFields: {
+                    $map: {
+                        input: "$expiryFields",
+                        as: "expiry",
+                        in: {
+                          expiryMonth: "$$expiry.expiryMonth",
+                          expiryPcs: "$$expiry.expiryPcs" // Example keys
+                        }
+                    }
+                },
+                offtake: 1,
+                inventoryDaysLevel: { $round: ["$inventoryDaysLevel", 2] }, // Round to 2 decimals
+                noOfDaysOOS: 1,
+                remarksOOS: 1,
+                "user_first_name": "$first_name",
+                "user_last_name": "$last_name",
+                _id: 0
+            }
+        },
+        
+          // Sort the output by specific fields
+          {
+              $sort: {
+                  date: 1, // Sort by date in ascending order
+                  "user_first_name": 1
+              }
+          }
+      ]);
+
+      return res.send({ status: 200, data });
+  } catch (error) {
+      return res.status(500).send({ error: error.message });
+  }
+});
+
+app.post("/export-RTV-data", async (req, res) => {
+  const { start, end } = req.body;
+
+  try {
+      const data = await mongoose.model("TowiReturnToVendor").aggregate([
+          // Match documents within the specified date range
+          {
+              $match: {
+                  $expr: {
+                      $and: [
+                          { $gte: [{ $toDate: "$date" }, new Date(start)] },
+                          { $lt: [{ $toDate: "$date" }, new Date(end)] }
+                      ]
+                  }
+              }
+          },
+          // Optionally join with another collection if needed
+          {
+              $lookup: {
+                  from: "users",
+                  localField: "UserEmail", // Adjust field to match schema
+                  foreignField: "email",
+                  as: "user_details"
+              }
+          },
+          // Flatten the structure by merging user details into the root object
+          {
+              $replaceRoot: {
+                  newRoot: {
+                      $mergeObjects: [
+                          { $arrayElemAt: ["$user_details", 0] },
+                          "$$ROOT"
+                      ]
+                  }
+              }
+          },
+          // Select and rename fields for the output
+          {
+            $project: {
+                date: 1,
+                merchandiserName: 1,
+                inputId: 1,
+                UserEmail: 1,
+                outlet: 1,
+                category: 1,
+                item: 1,
+                quantity: 1,
+                driverName: 1,
+                plateNumber: 1,
+                pullOutReason: 1,
+            }
+        },
+        
+          // Sort the output by specific fields
+          {
+              $sort: {
+                  date: 1, // Sort by date in ascending order
+                  "user_first_name": 1
+              }
+          }
+      ]);
+
+      return res.send({ status: 200, data });
+  } catch (error) {
+      return res.status(500).send({ error: error.message });
   }
 });
 
 app.post("/filter-RTV-data", async (req, res) => {
-  
-  const {selectDate} = req.body;
-  try {
-    const parcelPerUser = await RTV.find({date:{$eq:selectDate}});
+  const { selectDate, branches } = req.body; // Get date and branches from request body
 
-    console.log("Found parcels:", parcelPerUser);
-    return res.status(200).json({ status: 200, data: parcelPerUser });
+  if (!branches || !Array.isArray(branches)) {
+    return res.status(400).json({ status: 400, message: "Invalid branch data" });
+  }
+
+  try {
+    const rtvData = await RTV.find({
+      date: { $eq: selectDate },
+      outlet: { $in: branches }, // Filter by branches
+    });
+
+    console.log("Filtered RTV data by date and branches:", rtvData);
+    return res.status(200).json({ status: 200, data: rtvData });
   } catch (error) {
-    return res.send({ error: error });
+    console.error("Error filtering RTV data:", error);
+    return res.status(500).json({ status: 500, message: "Server error" });
   }
 });
+
 
 const transporter = nodemailer.createTransport({
   pool: true,
