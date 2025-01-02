@@ -19,9 +19,14 @@ require('dotenv').config()
 
 app.use(express.json());
 
-var cors = require("cors");
-const { status, type, append } = require("express/lib/response");
-app.use(cors());
+const cors = require("cors");
+const corsOptions = {
+  origin: "https://towiadmin.vercel.app", // Frontend domain
+  methods: ["GET", "POST", "PUT", "DELETE"], // Allowed methods
+  credentials: true, // Allow cookies/credentials
+};
+app.use(cors(corsOptions));
+app.options("*", cors(corsOptions)); // Handle preflight requests
 
 const mongoURI =
   "mongodb+srv://TowiAppUser:TowiAppPass@towi.v2djp3n.mongodb.net/?retryWrites=true&w=majority&appName=TOWI";
@@ -663,17 +668,17 @@ app.post("/test-index", async (req, res) => {
   }
 });
 
-app.post("/retrieve-parcel-data", async (req, res) => {
+// app.post("/retrieve-parcel-data", async (req, res) => {
 
-  try {
-    const parcelPerUser = await ParcelData.find();
+//   try {
+//     const parcelPerUser = await ParcelData.find();
 
-    console.log("Found parcels:", parcelPerUser);
-    return res.status(200).json({ status: 200, data: parcelPerUser });
-  } catch (error) {
-    return res.send({ error: error });
-  }
-});
+//     console.log("Found parcels:", parcelPerUser);
+//     return res.status(200).json({ status: 200, data: parcelPerUser });
+//   } catch (error) {
+//     return res.send({ error: error });
+//   }
+// });
 
 app.post("/filter-date-range", async (req, res) => {
   const { startDate, endDate } = req.body; // Expect startDate and endDate in the request body
@@ -694,26 +699,26 @@ app.post("/filter-date-range", async (req, res) => {
 });
 
 
-// app.post("/retrieve-parcel-data", async (req, res) => {
-//   try {
-//     const { branches } = req.body; // Get the branch list from the request body
+app.post("/retrieve-parcel-data", async (req, res) => {
+  try {
+    const { branches } = req.body; // Get the branch list from the request body
 
-//     if (!branches || !Array.isArray(branches)) {
-//       return res.status(400).json({ status: 400, message: "Invalid branch data" });
-//     }
+    if (!branches || !Array.isArray(branches)) {
+      return res.status(400).json({ status: 400, message: "Invalid branch data" });
+    }
 
-//     // Find parcels that match the provided branches
-//     const parcelPerUser = await ParcelData.find({
-//       accountNameBranchManning: { $in: branches }
-//     });
+    // Find parcels that match the provided branches
+    const parcelPerUser = await ParcelData.find({
+      accountNameBranchManning: { $in: branches }
+    });
 
-//     console.log("Filtered parcels:", parcelPerUser);
-//     return res.status(200).json({ status: 200, data: parcelPerUser });
-//   } catch (error) {
-//     console.error("Error retrieving parcels:", error);
-//     return res.status(500).json({ status: 500, error: "Server error" });
-//   }
-// });
+    console.log("Filtered parcels:", parcelPerUser);
+    return res.status(200).json({ status: 200, data: parcelPerUser });
+  } catch (error) {
+    console.error("Error retrieving parcels:", error);
+    return res.status(500).json({ status: 500, error: "Server error" });
+  }
+});
 
 app.post("/retrieve-RTV-data", async (req, res) => {
   const { branches } = req.body; // Get branches from request body
