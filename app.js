@@ -19,14 +19,9 @@ require('dotenv').config()
 
 app.use(express.json());
 
-const cors = require("cors");
-const corsOptions = {
-  origin: "https://latest-backend-towi-admin.onrender.com", // Frontend domain
-  methods: ["GET", "POST", "PUT", "DELETE"], // Allowed methods
-  credentials: true, // Allow cookies/credentials
-};
-app.use(cors(corsOptions));
-app.options("*", cors(corsOptions)); // Handle preflight requests
+var cors = require("cors");
+const { status, type, append } = require("express/lib/response");
+app.use(cors());
 
 const mongoURI =
   "mongodb+srv://TowiAppUser:TowiAppPass@towi.v2djp3n.mongodb.net/?retryWrites=true&w=majority&appName=TOWI";
