@@ -62,14 +62,17 @@ app.get("/", (req, res) => {
 });
 
 app.post("/get-users-by-branch", async (req, res) => {
-  const { branch } = req.body;
+  const { branches } = req.body; // Expecting an array of branches
   try {
-    const users = await ParcelData.find({ accountNameBranchManning: branch });
+    // Fetch users whose `accountNameBranchManning` is one of the provided branches
+    const users = await ParcelData.find({ accountNameBranchManning: { $in: branches } });
+
     return res.status(200).json({ status: 200, users });
   } catch (error) {
     return res.status(500).json({ error: "Error fetching users" });
   }
 });
+
 
 
 app.post("/get-all-attendance", async (req, res) => {
