@@ -11,6 +11,7 @@ require("./InventoryData");
 require("./RtvData");
 require("./HistoryAttendance");
 require("./status")
+const AWS = require('aws-sdk');
 const nodemailer = require("nodemailer");
 const bcrypt = require("bcryptjs");
 const jwt = require("jsonwebtoken");
@@ -63,17 +64,83 @@ app.get("/", (req, res) => {
 
 app.post("/get-users-by-branch", async (req, res) => {
   const { branches } = req.body; // Expecting an array of branches
-  try {
-    // Fetch users whose `accountNameBranchManning` is one of the provided branches
-    const users = await ParcelData.find({ accountNameBranchManning: { $in: branches } });
+  console.log("Received branches:", branches);
 
-    return res.status(200).json({ status: 200, users });
+  try {
+    // Fetch users with branches matching any in the provided list
+    const users = await User.find({
+      $or: branches.map(branch => ({
+        accountNameBranchManning: { $regex: `\\b${branch}\\b`, $options: "i" }, // Match branch case-insensitively
+      })),
+    });
+
+    const expandedUsers = users.flatMap(user => {
+      const branchesForUser =
+        Array.isArray(user.accountNameBranchManning)
+          ? user.accountNameBranchManning
+          : user.accountNameBranchManning.split(",").map(branch => branch.trim());
+    
+      return branchesForUser
+        .filter(userBranch => branches.includes(userBranch)) // Only include matched branches
+        .map(branch => ({
+          ...user.toObject(),
+          branch,
+        }));
+    });
+
+    // Remove duplicates based on both username and branch
+    const uniqueUsers = Array.from(
+      new Map(
+        expandedUsers.map(user => [`${user.username}-${user.branch}`, user]) // Combine `username` and `branch` as the unique key
+      ).values()
+    );
+
+    console.log("Unique Users:", uniqueUsers);
+
+    // Send response with the filtered users, or an error if no users found
+    if (uniqueUsers.length === 0) {
+      return res.status(404).json({ status: 404, message: "No users found for the given branches" });
+    }
+
+    return res.status(200).json({ status: 200, users: uniqueUsers });
   } catch (error) {
+    console.error("Error fetching users:", error);
     return res.status(500).json({ error: "Error fetching users" });
   }
 });
 
 
+
+const s3 = new AWS.S3({
+
+  accessKeyId: process.env.AWS_ACCESS_KEY_ID,
+  secretAccessKey: process.env.AWS_SECRET_ACCESS_KEY,
+  region: process.env.AWS_REGION,
+  
+});
+
+// Endpoint to generate pre-signed URL
+app.post('/save-attendance-images', (req, res) => {
+  const { fileName } = req.body;
+
+  // Set S3 parameters
+  const params = {
+    Bucket: 'attendance-images-towi',
+    Key: fileName,
+    Expires: 60, // URL expiration time (in seconds)
+    ContentType: 'image/jpeg', // Or the file type you're uploading
+  };
+
+  // Generate the pre-signed URL
+  s3.getSignedUrl('putObject', params, (err, url) => {
+    if (err) {
+      return res.status(500).json({ error: 'Failed to generate pre-signed URL' });
+    }
+
+    // Send the URL to the client
+    res.json({ url });
+  });
+});
 
 app.post("/get-all-attendance", async (req, res) => {
 
@@ -99,15 +166,47 @@ const {userEmail} = req.body;
 });
 
 
-app.post("/get-attendance", async (req, res) => {
-  const { userEmail } = req.body;
-
-
+app.post('/get-attendance', async (req, res) => {
   try {
-    const attendanceData = await Attendance.find({ userEmail: userEmail }); // Fetch data from the database
-    return res.send({ status: 200, data: attendanceData });
+    const { userEmail } = req.body;
+    console.log("Received request for userEmail:", userEmail);
+
+    // Fetch all attendance records for the user, sorted by date in descending order
+    const attendanceRecords = await Attendance.find({ userEmail }).sort({ date: 1 });
+
+    if (!attendanceRecords.length) {
+      console.log("No attendance found for user:", userEmail);
+      return res.json({ success: true, data: [] });
+    }
+
+    // Log the raw data to inspect the time coordinates
+    console.log("Fetched Attendance Records:", JSON.stringify(attendanceRecords, null, 2));
+
+    const result = attendanceRecords.map(attendance => ({
+      date: attendance.date,
+      accountNameBranchManning: attendance.accountNameBranchManning || '',
+      timeLogs: attendance.timeLogs.map(log => {
+        // Log each time log coordinates
+        console.log('Time In Coordinates:', log.time_in_coordinates);
+        console.log('Time Out Coordinates:', log.time_out_coordinates);
+        
+        return {
+          timeIn: log.timeIn,
+          timeOut: log.timeOut,
+          timeInLocation: log.timeInLocation || 'No location provided',
+          timeOutLocation: log.timeOutLocation || 'No location provided',
+          timeInCoordinates: log.time_in_coordinates || { latitude: 0, longitude: 0 },
+          timeOutCoordinates: log.time_out_coordinates || { latitude: 0, longitude: 0 },
+          selfieUrl: log.selfieUrl || '', // Add selfieUrl here
+        };
+      })
+    }));
+
+    console.log("Formatted Attendance Data:", JSON.stringify(result, null, 2));
+    res.json({ success: true, data: result });
   } catch (error) {
-    return res.status(500).send({ error: error.message });
+    console.error("Error in /get-attendance:", error);
+    res.status(500).json({ success: false, message: 'Internal server error' });
   }
 });
 
@@ -137,6 +236,83 @@ app.get('/get-skus-by-status', async (req, res) => {
   } catch (error) {
     console.error('Error fetching SKUs:', error);
     res.status(500).json({ message: 'Internal server error' });
+  }
+});
+
+app.post("/export-attendance-data", async (req, res) => {
+  const { start, end } = req.body;
+
+  try {
+    console.log("Received request for export data with dates:", start, end);
+
+    const data = await mongoose.model("TowiAttendances").aggregate([
+      // Match documents within the specified date range
+      {
+        $match: {
+          date: { 
+            $gte: new Date(start),
+            $lt: new Date(end)
+          }
+        }
+      },
+      // Optionally join with another collection if needed
+      {
+        $lookup: {
+          from: "users",
+          localField: "userEmail", 
+          foreignField: "email",
+          as: "user_details"
+        }
+      },
+      // Flatten the structure by merging user details into the root object
+      {
+        $replaceRoot: {
+          newRoot: {
+            $mergeObjects: [
+              { $arrayElemAt: ["$user_details", 0] },
+              "$$ROOT"
+            ]
+          }
+        }
+      },
+      // Select and rename fields for the output
+      {
+        $project: {
+          date: 1,
+          userEmail: 1,
+          accountNameBranchManning: 1,
+          timeLogs: {
+            $map: {
+              input: "$timeLogs",
+              as: "log",
+              in: {
+                timeIn: "$$log.timeIn",
+                timeOut: "$$log.timeOut",
+                timeInLocation: "$$log.timeInLocation",
+                timeOutLocation: "$$log.timeOutLocation"
+              }
+            }
+          },
+          "user_first_name": "$first_name",
+          "user_last_name": "$last_name",
+          _id: 0
+        }
+      },
+      // Sort the output by specific fields
+      {
+        $sort: {
+          date: 1,
+          "user_first_name": 1
+        }
+      }
+    ]);
+
+    console.log("Aggregated data:", JSON.stringify(data));
+
+    return res.send({ status: 200, data });
+  } catch (error) {
+    console.error("Error exporting attendance data:", error);
+    return res.status(500).send({ error: error.message });
   }
 });
 
@@ -591,47 +767,37 @@ app.post("/get-all-merchandiser", async (req, res) => {
 
 app.post("/get-all-user", async (req, res) => {
   try {
-    const { branches } = req.body; // Get the branches from the request body
-
-    if (!branches || !Array.isArray(branches)) {
-      return res.status(400).json({ status: 400, message: "Invalid branch data" });
-    }
-
-    // Filter users based on the provided branches
     User.aggregate([
       {
         $match: {
-          type: 1, // Assuming this is the type filter for users
-          accountNameBranchManning: { $in: branches }
+          "type": 1
         }
-      },
+      }, 
+      
       {
         $project: {
-          firstName: 1,
-          middleName: 1,
-          lastName: 1,
-          emailAddress: 1,
-          contactNum: 1,
-          isActivate: 1,
-          remarks: 1,
-          accountNameBranchManning: 1,
-          username: 1,
-          // j_date: 1,
+            "firstName" : 1,
+            "middleName" : 1,
+            "lastName" : 1,
+            "emailAddress" : 1,
+            "contactNum" : 1,
+            "isActivate" : 1,
+            "remarks" : 1,
+            "accountNameBranchManning" : 1,
+            "username": 1,
+            // "j_date" : 1,
         }
-      }
-    ])
-      .then((data) => {
-        return res.status(200).json({ status: 200, data });
-      })
-      .catch((error) => {
-        console.error("Error during user aggregation:", error);
-        return res.status(500).json({ status: 500, message: "Server error" });
-      });
+    }
+    ]).then((data) => {
+      return res.send({ status: 200, data: data });
+    });
   } catch (error) {
-    console.error("Error in /get-all-user:", error);
-    return res.status(500).json({ error: error.message });
+    return res.send({ error: error });
   }
+
+
 });
+
 
 
 app.post("/view-user-attendance", async (req, res) => {
