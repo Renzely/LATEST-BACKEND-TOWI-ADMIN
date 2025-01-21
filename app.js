@@ -767,36 +767,45 @@ app.post("/get-all-merchandiser", async (req, res) => {
 
 app.post("/get-all-user", async (req, res) => {
   try {
-    User.aggregate([
+    // Extract branches array from the request body
+    const { branches } = req.body;
+
+    if (!branches || branches.length === 0) {
+      return res.status(400).send({ status: 400, message: "No branches provided for filtering." });
+    }
+
+    // Aggregate users matching type and branches
+    const users = await User.aggregate([
       {
         $match: {
-          "type": 1
-        }
-      }, 
-      
+          type: 1,
+          accountNameBranchManning: { $in: branches }, // Filter by branches
+        },
+      },
       {
         $project: {
-            "firstName" : 1,
-            "middleName" : 1,
-            "lastName" : 1,
-            "emailAddress" : 1,
-            "contactNum" : 1,
-            "isActivate" : 1,
-            "remarks" : 1,
-            "accountNameBranchManning" : 1,
-            "username": 1,
-            // "j_date" : 1,
-        }
-    }
-    ]).then((data) => {
-      return res.send({ status: 200, data: data });
-    });
+          firstName: 1,
+          middleName: 1,
+          lastName: 1,
+          emailAddress: 1,
+          contactNum: 1,
+          isActivate: 1,
+          remarks: 1,
+          accountNameBranchManning: 1,
+          username: 1,
+          // j_date: 1, // Uncomment if needed
+        },
+      },
+    ]);
+
+    // Send filtered user data to the frontend
+    return res.send({ status: 200, data: users });
   } catch (error) {
-    return res.send({ error: error });
+    console.error("Error fetching users:", error);
+    return res.status(500).send({ status: 500, error: "Internal server error" });
   }
-
-
 });
+
 
 
 
