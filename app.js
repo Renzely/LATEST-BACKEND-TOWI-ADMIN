@@ -806,6 +806,21 @@ app.post("/get-all-user", async (req, res) => {
   }
 });
 
+app.post("/get-user-attendance", async (req, res) => {
+  try {
+    const { userEmails } = req.body;
+
+    if (!userEmails || userEmails.length === 0) {
+      return res.status(400).send({ status: 400, message: "No emails provided for attendance lookup." });
+    }
+
+    const attendance = await Attendance.find({ emailAddress: { $in: userEmails } }).lean();
+    return res.send({ status: 200, attendance });
+  } catch (error) {
+    console.error("Error fetching attendance:", error);
+    return res.status(500).send({ status: 500, error: "Internal server error" });
+  }
+});
 
 
 
