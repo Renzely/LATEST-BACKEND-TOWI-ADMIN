@@ -197,7 +197,8 @@ app.post('/get-attendance', async (req, res) => {
           timeOutLocation: log.timeOutLocation || 'No location provided',
           timeInCoordinates: log.time_in_coordinates || { latitude: 0, longitude: 0 },
           timeOutCoordinates: log.time_out_coordinates || { latitude: 0, longitude: 0 },
-          selfieUrl: log.selfieUrl || '', // Add selfieUrl here
+          selfieUrl: log.selfieUrl || '', // Time-in selfie URL
+          timeOutSelfieUrl: log.timeOutSelfieUrl || '', // Time-out selfie URL
         };
       })
     }));
