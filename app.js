@@ -643,32 +643,32 @@ app.post("/login-admin", async (req, res) => {
   if (!oldUser)
     return res.send({ status: 401, data: "Invalid email or password" });
 
-  if (!oldUser.type === 2)
-    return res.send({ status: 401, data: "Invalid User." });
+  if (oldUser.type !== 3) {
+    return res.send({
+      status: 401,
+      data: "Only admins are allowed to login here.",
+    });
+  }
 
-  if (oldUser.isActivate === false)
+  if (!oldUser.isActivate)
     return res.send({ status: 401, data: "User is already deactivated." });
 
   if (await bcrypt.compare(password, oldUser.password)) {
     const token = jwt.sign({ emailAddress: oldUser.emailAddress }, JWT_SECRET);
 
-    if (res.status(201)) {
-      return res.send({
-        status: 200,
-        data: {
-          token,
-          emailAddress: oldUser.emailAddress,
-          firstName: oldUser.firstName,
-          middleName: oldUser.middleName,
-          lastName: oldUser.lastName,
-          contactNum: oldUser.contactNum,
-          roleAccount: oldUser.roleAccount,
-          accountNameBranchManning: oldUser.accountNameBranchManning, // Include roleAccount in the response
-        },
-      });
-    } else {
-      return res.send({ error: "error" });
-    }
+    return res.send({
+      status: 200,
+      data: {
+        token,
+        emailAddress: oldUser.emailAddress,
+        firstName: oldUser.firstName,
+        middleName: oldUser.middleName,
+        lastName: oldUser.lastName,
+        contactNum: oldUser.contactNum,
+        roleAccount: oldUser.roleAccount,
+        accountNameBranchManning: oldUser.accountNameBranchManning,
+      },
+    });
   } else {
     return res.send({ status: 401, data: "Invalid user or password" });
   }
